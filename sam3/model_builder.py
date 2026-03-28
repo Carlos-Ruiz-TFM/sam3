@@ -10,6 +10,7 @@ import torch
 import torch.nn as nn
 from huggingface_hub import hf_hub_download
 from iopath.common.file_io import g_pathmgr
+from sam3.model.ultralytics_model_builder import build_ultralytics_sam3_image_model
 from sam3.model.decoder import (
     TransformerDecoder,
     TransformerDecoderLayer,
@@ -566,6 +567,7 @@ def build_sam3_image_model(
     enable_segmentation=True,
     enable_inst_interactivity=False,
     compile=False,
+    backend="native",
 ):
     """
     Build SAM3 image model
@@ -578,10 +580,23 @@ def build_sam3_image_model(
         enable_segmentation: Whether to enable segmentation head
         enable_inst_interactivity: Whether to enable instance interactivity (SAM 1 task)
         compile_mode: To enable compilation, set to "default"
+        backend: Model backend to use. Supported values: "native", "ultralytics"
 
     Returns:
         A SAM3 image model
     """
+    if backend == "ultralytics":
+        return build_ultralytics_sam3_image_model(
+            checkpoint_path=checkpoint_path or "sam3.pt",
+            device=device,
+            confidence_threshold=0.5,
+            compile=compile,
+        )
+    if backend != "native":
+        raise ValueError(
+            f"Unsupported backend {backend!r}. Expected 'native' or 'ultralytics'."
+        )
+
     if bpe_path is None:
         bpe_path = pkg_resources.resource_filename(
             "sam3", "assets/bpe_simple_vocab_16e6.txt.gz"

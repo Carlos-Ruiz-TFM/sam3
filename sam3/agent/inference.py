@@ -2,10 +2,25 @@
 
 # pyre-unsafe
 
+import hashlib
 import json
 import os
+import re
 
 from sam3.agent.agent_core import agent_inference
+
+
+def _safe_filename_component(text: str, max_length: int = 120) -> str:
+    """Create a filesystem-safe, length-bounded filename component."""
+    normalized = re.sub(r"[^A-Za-z0-9._-]+", "_", text).strip("._-")
+    if not normalized:
+        normalized = "prompt"
+    if len(normalized) <= max_length:
+        return normalized
+
+    digest = hashlib.sha1(text.encode("utf-8")).hexdigest()[:12]
+    truncated = normalized[: max_length - len(digest) - 1].rstrip("._-")
+    return f"{truncated}_{digest}"
 
 
 def run_single_image_inference(
@@ -29,7 +44,7 @@ def run_single_image_inference(
 
     # Generate output file names
     image_basename = os.path.splitext(os.path.basename(image_path))[0]
-    prompt_for_filename = text_prompt.replace("/", "_").replace(" ", "_")
+    prompt_for_filename = _safe_filename_component(text_prompt)
 
     base_filename = f"{image_basename}_{prompt_for_filename}_agent_{llm_name}"
     output_json_path = os.path.join(output_dir, f"{base_filename}_pred.json")
@@ -39,7 +54,7 @@ def run_single_image_inference(
     # Check if output already exists and skip
     if os.path.exists(output_json_path):
         print(f"Output JSON {output_json_path} already exists. Skipping.")
-        return
+        return output_image_path if os.path.exists(output_image_path) else output_json_path
 
     print(f"{'-' * 30} Starting SAM 3 Agent Session... {'-' * 30} ")
     agent_history, final_output_dict, rendered_final_output = agent_inference(
